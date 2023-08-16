@@ -14,97 +14,17 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class Server {
-    private int port;
-    private final int countOfThreadPools = 64;
+    private final static int PORT = 9999;
 
-    /*final var in;
-    final var out;
-    final var validPaths = List.of("/index.html", "/spring.svg", "/spring.png",
-            "/resources.html", "/styles.css", "/app.js", "/links.html", "/forms.html",
-            "/classic.html", "/events.html", "/events.js");*/
-    public Server(int port) {
-        this.port = port;
-
-    }
-
+   private final ExecutorService threadpool = Executors.newFixedThreadPool(64);
     public void start() throws IOException {
+        while (true){
+        try ( var serverSocket = new ServerSocket(PORT)) {
+             var socket = serverSocket.accept();
+            var thread = new Handlers(socket);
+            threadpool.submit((Runnable) thread);
+        }
+        }
 
-        final var validPaths = List.of("/index.html", "/spring.svg", "/spring.png",
-                "/resources.html", "/styles.css", "/app.js", "/links.html", "/forms.html",
-                "/classic.html", "/events.html", "/events.js");
-        final ExecutorService threadpool = Executors.newFixedThreadPool(countOfThreadPools);
-        threadpool.submit(new Runnable() {
-            public void run() {
-                try (final var serverSocket = new ServerSocket(port)) {
-
-                    while (true) {
-                        try (
-                                final var socket = serverSocket.accept();
-                                final var in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                                final var out = new BufferedOutputStream(socket.getOutputStream());
-                        ) {
-
-                            // read only request line for simplicity
-                            // must be in form GET /path HTTP/1.1
-
-
-                            final var requestLine = in.readLine();
-                            final var parts = requestLine.split(" ");
-
-                            if (parts.length != 3) {
-                                // just close socket
-                                continue;
-                            }
-                            final var path = parts[1];
-                            if (!validPaths.contains(path)) {
-                                out.write((
-                                        "HTTP/1.1 404 Not Found\r\n" +
-                                                "Content-Length: 0\r\n" +
-                                                "Connection: close\r\n" +
-                                                "\r\n"
-                                ).getBytes());
-                                out.flush();
-                                continue;
-                            }
-                            final var filePath = Path.of(".", "public", path);
-                            final var mimeType = Files.probeContentType(filePath);
-
-                            // special case for classic
-                            if (path.equals("/classic.html")) {
-                                final var template = Files.readString(filePath);
-                                final var content = template.replace(
-                                        "{time}",
-                                        LocalDateTime.now().toString()
-                                ).getBytes();
-                                out.write((
-                                        "HTTP/1.1 200 OK\r\n" +
-                                                "Content-Type: " + mimeType + "\r\n" +
-                                                "Content-Length: " + content.length + "\r\n" +
-                                                "Connection: close\r\n" +
-                                                "\r\n"
-                                ).getBytes());
-                                out.write(content);
-                                out.flush();
-                                continue;
-                            }
-
-                            final var length = Files.size(filePath);
-                            out.write((
-                                    "HTTP/1.1 200 OK\r\n" +
-                                            "Content-Type: " + mimeType + "\r\n" +
-                                            "Content-Length: " + length + "\r\n" +
-                                            "Connection: close\r\n" +
-                                            "\r\n"
-                            ).getBytes());
-                            Files.copy(filePath, out);
-                            out.flush();
-                        }
-                    }
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        });
-        threadpool.shutdown();
     }
 }
